@@ -98,7 +98,7 @@ const state = {
   conflicts: [],
   filters: {
     coach: "all",
-    day: "all",
+    days: [],
     lesson: "all",
     search: ""
   },
@@ -142,14 +142,29 @@ function bindElements() {
 function bindEvents() {
   els.coachFilter.addEventListener("change", () => {
     state.filters.coach = els.coachFilter.value;
-    state.filters.day = "all";
+    state.filters.days = [];
     state.filters.lesson = "all";
     hydrateDependentFilters();
     render();
   });
 
-  els.dayFilter.addEventListener("change", () => {
-    state.filters.day = els.dayFilter.value;
+  els.dayFilter.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest("[data-day]");
+    if (!button || button.disabled) return;
+
+    if (button.dataset.day === "all") {
+      state.filters.days = [];
+    } else {
+      const selected = new Set(state.filters.days);
+      if (selected.has(button.dataset.day)) {
+        selected.delete(button.dataset.day);
+      } else {
+        selected.add(button.dataset.day);
+      }
+      state.filters.days = [...selected].sort(sortDays);
+    }
+
     state.filters.lesson = "all";
     hydrateDependentFilters();
     render();
@@ -223,23 +238,22 @@ function hydrateFilters() {
 }
 
 function hydrateDependentFilters() {
-  const currentDay = state.filters.day;
   const currentLesson = state.filters.lesson;
   const coachScoped = state.lessons.filter((lesson) => state.filters.coach === "all" || lesson.coach === state.filters.coach);
-  const dayScoped = coachScoped.filter((lesson) => currentDay === "all" || lesson.day === currentDay);
   const days = unique(coachScoped.map((lesson) => lesson.day).filter(Boolean)).sort(sortDays);
+  const validDays = state.filters.days.filter((day) => days.includes(day));
+  if (validDays.length !== state.filters.days.length) {
+    state.filters.days = validDays;
+  }
+
+  const dayScoped = coachScoped.filter((lesson) => !state.filters.days.length || state.filters.days.includes(lesson.day));
   const lessonOptions = dayScoped
     .slice()
     .sort(sortLessons)
     .map((lesson) => [lesson.id, lessonOptionLabel(lesson)]);
 
-  fillSelect(els.dayFilter, [["all", "Вся неделя"], ...days.map((day) => [day, day])], currentDay);
+  renderDayFilter(days);
   fillSelect(els.lessonFilter, [["all", "Все тренировки"], ...lessonOptions], currentLesson);
-
-  if (!days.includes(currentDay) && currentDay !== "all") {
-    state.filters.day = "all";
-    els.dayFilter.value = "all";
-  }
 
   if (!lessonOptions.some(([id]) => id === currentLesson) && currentLesson !== "all") {
     state.filters.lesson = "all";
@@ -258,6 +272,27 @@ function fillSelect(select, options, selectedValue) {
   select.value = options.some(([value]) => value === selectedValue) ? selectedValue : "all";
 }
 
+function renderDayFilter(days) {
+  const available = new Set(days);
+  const selected = new Set(state.filters.days);
+  const options = [["all", "Все"], ...DAY_ORDER.map((day) => [day, shortDay(day)])];
+
+  els.dayFilter.replaceChildren();
+  options.forEach(([value, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "day-toggle";
+    button.dataset.day = value;
+    button.textContent = label;
+    button.title = value === "all" ? "Вся неделя" : value;
+    const isActive = value === "all" ? !selected.size : selected.has(value);
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+    button.disabled = value !== "all" && !available.has(value);
+    els.dayFilter.append(button);
+  });
+}
+
 function render() {
   const filtered = getFilteredLessons();
   renderMetrics(filtered);
@@ -272,7 +307,7 @@ function getFilteredLessons() {
   const search = state.filters.search;
   return state.lessons.filter((lesson) => {
     if (state.filters.coach !== "all" && lesson.coach !== state.filters.coach) return false;
-    if (state.filters.day !== "all" && lesson.day !== state.filters.day) return false;
+    if (state.filters.days.length && !state.filters.days.includes(lesson.day)) return false;
     if (state.filters.lesson !== "all" && lesson.id !== state.filters.lesson) return false;
     if (!search) return true;
     return [
@@ -307,8 +342,8 @@ function renderWeek(lessons) {
   }
 
   const grouped = groupBy(lessons, (lesson) => lesson.day || "Без дня");
-  const days = state.filters.day === "all" && state.filters.coach !== "all"
-    ? DAY_ORDER
+  const days = state.filters.coach !== "all"
+    ? (state.filters.days.length ? state.filters.days : DAY_ORDER)
     : Object.keys(grouped).sort(sortDays);
 
   days.forEach((day) => {
