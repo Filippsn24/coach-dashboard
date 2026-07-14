@@ -167,7 +167,7 @@ h1 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(170px, 240px) minmax(130px, 170px) minmax(220px, 1.1fr) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(170px, 240px) minmax(300px, 1.35fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -205,6 +205,38 @@ button:focus-visible,
 a:focus-visible {
   outline: 3px solid rgba(47, 111, 237, 0.22);
   outline-offset: 2px;
+}
+
+.day-filter-field {
+  min-width: 0;
+}
+
+.day-toggle-group {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(44px, 1fr));
+  gap: 6px;
+}
+
+.day-toggle {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 8px;
+  font-weight: 800;
+}
+
+.day-toggle.active {
+  border-color: #2f6fed;
+  background: #edf5ff;
+  color: #23476f;
+}
+
+.day-toggle:disabled {
+  opacity: 0.38;
+  cursor: default;
 }
 
 .segmented {
