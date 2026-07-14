@@ -209,7 +209,7 @@ a:focus-visible {
 
 .segmented {
   display: grid;
-  grid-template-columns: repeat(3, minmax(78px, 1fr));
+  grid-template-columns: repeat(2, minmax(78px, 1fr));
   min-height: 42px;
   padding: 3px;
   border: 1px solid var(--line);
@@ -362,6 +362,93 @@ a:focus-visible {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 12px;
+  margin-top: 12px;
+}
+
+.replacement-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.replacement-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.panel-kicker {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+#targetLessonBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  background: #edf5ff;
+  color: #23476f;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.target-summary,
+.free-coach-list,
+.conflict-list {
+  display: grid;
+  gap: 8px;
+}
+
+.target-summary {
+  margin-bottom: 12px;
+}
+
+.summary-line,
+.free-coach-item,
+.conflict-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+  padding: 10px 12px;
+}
+
+.free-coach-item,
+.conflict-item {
+  display: grid;
+  gap: 6px;
+}
+
+.free-coach-item strong,
+.conflict-item strong {
+  font-size: 15px;
+}
+
+.item-meta {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .coach-card {
@@ -470,6 +557,10 @@ a:focus-visible {
 
   .coach-board {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+
+  .replacement-grid {
+    grid-template-columns: 1fr;
   }
 }
 
