@@ -127,6 +127,7 @@ function bindElements() {
     "dayFilter",
     "lessonFilter",
     "searchInput",
+    "selectedLessonPanel",
     "scheduleGrid",
     "coachBoard",
     "targetLessonBadge",
@@ -296,6 +297,7 @@ function renderDayFilter(days) {
 function render() {
   const filtered = getFilteredLessons();
   renderMetrics(filtered);
+  renderSelectedLessonDetails();
   renderWeek(filtered);
   renderReplacementTools();
   renderCoachBoard(filtered);
@@ -314,6 +316,7 @@ function getFilteredLessons() {
       lesson.title,
       lesson.coach,
       lesson.group,
+      lesson.groupCount,
       lesson.room,
       lesson.note,
       lesson.day,
@@ -391,13 +394,45 @@ function lessonCard(lesson) {
 
   const meta = document.createElement("div");
   meta.className = "lesson-meta";
-  if (lesson.coach) meta.append(pill(lesson.coach, "coach"));
-  if (lesson.title && lesson.group && lesson.group !== lesson.title) meta.append(pill(lesson.title, ""));
+  if (lesson.groupCount) meta.append(pill(`Групп: ${lesson.groupCount}`, "groups"));
   if (lesson.room) meta.append(pill(lesson.room, "room"));
   if (lesson.note) meta.append(pill(lesson.note, ""));
 
   card.append(top, title, meta);
   return card;
+}
+
+function renderSelectedLessonDetails() {
+  const lesson = selectedLesson();
+  els.selectedLessonPanel.replaceChildren();
+  els.selectedLessonPanel.hidden = !lesson;
+  if (!lesson) return;
+
+  const title = document.createElement("h2");
+  title.textContent = lesson.group || lesson.title || "Тренировка";
+
+  const grid = document.createElement("div");
+  grid.className = "lesson-detail-grid";
+  grid.append(
+    detailItem("День и время", [lesson.day, lesson.time].filter(Boolean).join(", ") || "Не указано"),
+    detailItem("Количество групп", lesson.groupCount || "Не указано"),
+    detailItem("Адрес", lesson.room || "Не указан")
+  );
+  if (lesson.note) grid.append(detailItem("Комментарий", lesson.note));
+
+  els.selectedLessonPanel.append(title, grid);
+}
+
+function detailItem(label, value) {
+  const item = document.createElement("div");
+  item.className = "lesson-detail-item";
+  const name = document.createElement("span");
+  name.className = "lesson-detail-label";
+  name.textContent = label;
+  const text = document.createElement("strong");
+  text.textContent = value;
+  item.append(name, text);
+  return item;
 }
 
 function pill(text, className) {
@@ -461,8 +496,9 @@ function renderFreeCoaches() {
 
   els.targetLessonBadge.textContent = `${shortDay(target.day)} ${target.time}`;
   els.targetLessonSummary.append(
-    summaryLine(`${target.coach}: ${target.group || target.title}`),
+    summaryLine(target.group || target.title),
     summaryLine(`${target.day}, ${target.time}`),
+    summaryLine(target.groupCount ? `Групп: ${target.groupCount}` : "Количество групп не указано"),
     summaryLine(target.room || "Адрес не указан")
   );
 
@@ -713,6 +749,7 @@ function normalizeTrainerScheduleTable(rows, config) {
     const department = cleanValue(valueAt(row, config.departmentIndex));
     const comment = cleanValue(valueAt(row, config.commentIndex));
     const status = cleanValue(valueAt(row, config.statusIndex));
+    const lessonName = trainingTitle({ department, school });
 
     config.dayColumns.forEach(({ day, index }) => {
       const cell = cleanValue(valueAt(row, index));
@@ -725,10 +762,14 @@ function normalizeTrainerScheduleTable(rows, config) {
         day,
         time,
         coach,
-        group: trainingTitle({ department, school, groupCount }),
+        group: lessonName,
+        groupCount,
         room: [address, metro ? `м. ${metro}` : ""].filter(Boolean).join(" · "),
         note: [status, comment].filter(Boolean).join(" · "),
-        title: department || school || "Тренировка",
+        address,
+        metro,
+        school,
+        title: lessonName,
         source: { row: rowNumber, col: index + 1 }
       }));
     });
@@ -737,12 +778,10 @@ function normalizeTrainerScheduleTable(rows, config) {
   return lessons.sort((a, b) => localeSort(a.coach, b.coach) || sortDays(a.day, b.day) || sortLessons(a, b));
 }
 
-function trainingTitle({ department, school, groupCount }) {
-  const parts = [];
-  if (department) parts.push(department);
-  if (school) parts.push(`школа ${school}`);
-  if (groupCount) parts.push(`${groupCount} гр.`);
-  return parts.join(" · ") || "Тренировка";
+function trainingTitle({ department, school }) {
+  if (department) return department;
+  if (school) return `школа ${school}`;
+  return "Тренировка";
 }
 
 function normalizeTableRows(rows, headerIndex, headerMap) {
@@ -828,6 +867,7 @@ function buildLesson(input) {
     time: input.time || "",
     coach: input.coach || "",
     group: input.group || "",
+    groupCount: input.groupCount || "",
     room: input.room || "",
     note: input.note || "",
     title: input.title || input.group || "Занятие",
@@ -1024,8 +1064,7 @@ function isSkippableMatrixCell(value) {
 }
 
 function lessonOptionLabel(lesson) {
-  const parts = [shortDay(lesson.day), lesson.time, lesson.group || lesson.title, lesson.room].filter(Boolean);
-  return parts.join(" · ");
+  return lesson.group || lesson.title || "Тренировка";
 }
 
 function detectConflicts(lessons) {
