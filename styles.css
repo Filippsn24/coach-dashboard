@@ -244,7 +244,7 @@ a:focus-visible {
 
 .schedule-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(180px, 1fr));
+  grid-template-columns: repeat(7, minmax(160px, 1fr));
   gap: 12px;
   align-items: start;
 }
