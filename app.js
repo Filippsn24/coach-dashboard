@@ -129,8 +129,10 @@ function bindElements() {
     "searchInput",
     "scheduleGrid",
     "coachBoard",
-    "issuesPanel",
-    "rawTable",
+    "targetLessonBadge",
+    "targetLessonSummary",
+    "freeCoachList",
+    "conflictList",
     "refreshButton"
   ].forEach((id) => {
     els[id] = document.getElementById(id);
@@ -260,9 +262,8 @@ function render() {
   const filtered = getFilteredLessons();
   renderMetrics(filtered);
   renderWeek(filtered);
+  renderReplacementTools();
   renderCoachBoard(filtered);
-  renderIssues();
-  renderRawTable();
 }
 
 function getFilteredLessons() {
@@ -374,7 +375,7 @@ function pill(text, className) {
 function renderCoachBoard(lessons) {
   els.coachBoard.replaceChildren();
   if (!lessons.length) {
-    els.coachBoard.append(emptyState("Нет данных по нагрузке"));
+    els.coachBoard.append(emptyState(state.filters.coach === "all" ? "Выберите тренера, чтобы увидеть нагрузку по дням" : "Нет данных по нагрузке"));
     return;
   }
 
@@ -406,6 +407,157 @@ function renderCoachBoard(lessons) {
     });
 }
 
+function renderReplacementTools() {
+  renderFreeCoaches();
+  renderConflictList();
+}
+
+function renderFreeCoaches() {
+  const target = selectedLesson();
+  els.targetLessonSummary.replaceChildren();
+  els.freeCoachList.replaceChildren();
+
+  if (!target) {
+    els.targetLessonBadge.textContent = "Выберите тренировку";
+    els.targetLessonSummary.append(summaryLine("Чтобы найти замену, выберите тренера и конкретную тренировку в фильтре сверху."));
+    els.freeCoachList.append(emptyState("После выбора тренировки здесь появятся свободные тренеры."));
+    return;
+  }
+
+  els.targetLessonBadge.textContent = `${shortDay(target.day)} ${target.time}`;
+  els.targetLessonSummary.append(
+    summaryLine(`${target.coach}: ${target.group || target.title}`),
+    summaryLine(`${target.day}, ${target.time}`),
+    summaryLine(target.room || "Адрес не указан")
+  );
+
+  if (!Number.isFinite(target.startMinutes) || !Number.isFinite(target.endMinutes)) {
+    els.freeCoachList.append(emptyState("Для этой тренировки не удалось распознать время."));
+    return;
+  }
+
+  const free = availableCoachesFor(target);
+  if (!free.length) {
+    els.freeCoachList.append(emptyState("Свободных тренеров на это время не найдено."));
+    return;
+  }
+
+  free.forEach(({ coach, dayLessons, weekLessons, weekHours }) => {
+    const item = document.createElement("article");
+    item.className = "free-coach-item";
+    const name = document.createElement("strong");
+    name.textContent = coach;
+    const meta = document.createElement("div");
+    meta.className = "item-meta";
+    meta.textContent = `${dayLessons.length} занятий в этот день, ${weekLessons.length} в неделю, ${formatHours(weekHours)} ч`;
+    item.append(name, meta);
+    els.freeCoachList.append(item);
+  });
+}
+
+function renderConflictList() {
+  els.conflictList.replaceChildren();
+
+  const target = selectedLesson();
+  if (target) {
+    if (!Number.isFinite(target.startMinutes) || !Number.isFinite(target.endMinutes)) {
+      els.conflictList.append(summaryLine("Для выбранной тренировки не удалось распознать время."));
+      return;
+    }
+
+    const overlaps = overlappingCoachesFor(target);
+    if (!overlaps.length) {
+      els.conflictList.append(summaryLine("В это время другие тренеры не заняты."));
+      return;
+    }
+
+    overlaps.forEach(({ coach, lessons }) => {
+      const item = document.createElement("article");
+      item.className = "conflict-item";
+      const title = document.createElement("strong");
+      title.textContent = coach;
+      const meta = document.createElement("div");
+      meta.className = "item-meta";
+      meta.textContent = lessons
+        .map((lesson) => `${lesson.time} ${lesson.group || lesson.title}${lesson.room ? ` · ${lesson.room}` : ""}`)
+        .join("; ");
+      item.append(title, meta);
+      els.conflictList.append(item);
+    });
+    return;
+  }
+
+  if (!state.conflicts.length) {
+    els.conflictList.append(summaryLine("Выберите конкретную тренировку, чтобы увидеть занятых тренеров на это же время."));
+    return;
+  }
+
+  state.conflicts
+    .slice()
+    .sort((a, b) => localeSort(a.coach, b.coach) || sortDays(a.day, b.day) || sortLessons(a.a, b.a))
+    .forEach((conflict) => {
+      const item = document.createElement("article");
+      item.className = "conflict-item";
+      const title = document.createElement("strong");
+      title.textContent = `${conflict.coach} · ${conflict.day}`;
+      const meta = document.createElement("div");
+      meta.className = "item-meta";
+      meta.textContent = `${conflict.a.time} ${conflict.a.group || conflict.a.title} пересекается с ${conflict.b.time} ${conflict.b.group || conflict.b.title}`;
+      item.append(title, meta);
+      els.conflictList.append(item);
+    });
+}
+
+function selectedLesson() {
+  if (state.filters.lesson === "all") return null;
+  return state.lessons.find((lesson) => lesson.id === state.filters.lesson) || null;
+}
+
+function availableCoachesFor(target) {
+  return unique(state.lessons.map((lesson) => lesson.coach).filter(Boolean))
+    .filter((coach) => coach !== target.coach)
+    .map((coach) => {
+      const weekLessons = state.lessons.filter((lesson) => lesson.coach === coach);
+      const dayLessons = weekLessons.filter((lesson) => lesson.day === target.day);
+      const busy = dayLessons.some((lesson) => lessonsOverlap(target, lesson));
+      return {
+        coach,
+        dayLessons,
+        weekLessons,
+        weekHours: totalHours(weekLessons),
+        busy
+      };
+    })
+    .filter((item) => !item.busy)
+    .sort((a, b) => a.dayLessons.length - b.dayLessons.length || a.weekHours - b.weekHours || localeSort(a.coach, b.coach));
+}
+
+function overlappingCoachesFor(target) {
+  return unique(state.lessons.map((lesson) => lesson.coach).filter(Boolean))
+    .filter((coach) => coach !== target.coach)
+    .map((coach) => {
+      const lessons = state.lessons
+        .filter((lesson) => lesson.coach === coach && lesson.day === target.day && lessonsOverlap(target, lesson))
+        .sort(sortLessons);
+      return { coach, lessons };
+    })
+    .filter((item) => item.lessons.length)
+    .sort((a, b) => sortLessons(a.lessons[0], b.lessons[0]) || localeSort(a.coach, b.coach));
+}
+
+function lessonsOverlap(a, b) {
+  if (!Number.isFinite(a.startMinutes) || !Number.isFinite(a.endMinutes)) return false;
+  if (!Number.isFinite(b.startMinutes) || !Number.isFinite(b.endMinutes)) return false;
+  return a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
+}
+
+function summaryLine(text) {
+  const item = document.createElement("div");
+  item.className = "summary-line";
+  item.textContent = text;
+  return item;
+}
+
 function miniBar(day, hours, max) {
   const row = document.createElement("div");
   row.className = "mini-row";
@@ -421,73 +573,6 @@ function miniBar(day, hours, max) {
   value.textContent = formatHours(hours);
   row.append(label, track, value);
   return row;
-}
-
-function renderIssues() {
-  els.issuesPanel.replaceChildren();
-  const issues = [];
-  state.conflicts.forEach((conflict) => {
-    issues.push(`${conflict.coach}: ${conflict.day}, ${conflict.a.time} пересекается с ${conflict.b.time}`);
-  });
-
-  const incomplete = state.lessons.filter((lesson) => !lesson.day || !lesson.time || !lesson.coach);
-  if (incomplete.length) {
-    issues.push(`Неполные записи: ${incomplete.length}`);
-  }
-
-  if (!issues.length) {
-    const item = document.createElement("div");
-    item.className = "issue-item ok";
-    item.textContent = "Критичных пересечений не найдено";
-    els.issuesPanel.append(item);
-    return;
-  }
-
-  issues.forEach((text) => {
-    const item = document.createElement("div");
-    item.className = "issue-item";
-    item.textContent = text;
-    els.issuesPanel.append(item);
-  });
-}
-
-function renderRawTable() {
-  els.rawTable.replaceChildren();
-  if (!state.rawRows.length) {
-    const tbody = document.createElement("tbody");
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.textContent = "Нет строк";
-    row.append(cell);
-    tbody.append(row);
-    els.rawTable.append(tbody);
-    return;
-  }
-
-  const width = Math.max(...state.rawRows.map((row) => row.length));
-  const headerIndex = detectHeaderRow(state.rawRows);
-  const header = state.rawRows[headerIndex] || [];
-  const thead = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-  for (let col = 0; col < width; col += 1) {
-    const th = document.createElement("th");
-    th.textContent = header[col] || `Колонка ${col + 1}`;
-    headerRow.append(th);
-  }
-  thead.append(headerRow);
-
-  const tbody = document.createElement("tbody");
-  state.rawRows.slice(headerIndex + 1, headerIndex + 151).forEach((rawRow) => {
-    const row = document.createElement("tr");
-    for (let col = 0; col < width; col += 1) {
-      const td = document.createElement("td");
-      td.textContent = rawRow[col] || "";
-      row.append(td);
-    }
-    tbody.append(row);
-  });
-
-  els.rawTable.append(thead, tbody);
 }
 
 async function refreshFromGoogleSheet() {
