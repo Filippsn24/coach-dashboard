@@ -29,10 +29,57 @@ const HEADER_ALIASES = {
   day: ["день", "дата", "weekday", "day"],
   time: ["время", "интервал", "часы", "time", "начало"],
   coach: ["тренер", "педагог", "преподаватель", "coach", "trainer"],
-  group: ["группа", "команда", "класс", "group", "team"],
-  room: ["зал", "аудитория", "площадка", "место", "room", "location"],
-  note: ["комментарий", "примечание", "заметка", "note", "comment"]
+  group: ["тренировка", "занятие", "урок", "группа", "команда", "класс", "schedule", "lesson", "training", "group", "team"],
+  room: ["зал", "аудитория", "площадка", "место", "адрес", "школа", "филиал", "room", "location"],
+  note: ["комментарий", "примечание", "заметка", "note", "comment"],
+  district: ["округ", "ао", "district"]
 };
+
+const LOCATION_MARKERS = [
+  "адрес",
+  "школ",
+  "гимназ",
+  "лицей",
+  "корпус",
+  "строение",
+  "стр.",
+  "улица",
+  "ул.",
+  "проспект",
+  "пр-т",
+  "проезд",
+  "переулок",
+  "пер.",
+  "шоссе",
+  "бульвар",
+  "наб.",
+  "набереж",
+  "площадь",
+  "метро",
+  "м.",
+  "район",
+  "зал",
+  "аудитория",
+  "кабинет",
+  "гбоу",
+  "маоу",
+  "мбоу"
+];
+
+const DISTRICT_MARKERS = [
+  "округ",
+  "цао",
+  "сао",
+  "свао",
+  "вао",
+  "ювао",
+  "юао",
+  "юзао",
+  "зао",
+  "сзао",
+  "зелао",
+  "тинао"
+];
 
 const state = {
   data: null,
@@ -42,6 +89,7 @@ const state = {
   filters: {
     coach: "all",
     day: "all",
+    lesson: "all",
     search: ""
   },
   view: "week"
@@ -67,6 +115,7 @@ function bindElements() {
     "metricConflicts",
     "coachFilter",
     "dayFilter",
+    "lessonFilter",
     "searchInput",
     "scheduleGrid",
     "coachBoard",
@@ -81,11 +130,21 @@ function bindElements() {
 function bindEvents() {
   els.coachFilter.addEventListener("change", () => {
     state.filters.coach = els.coachFilter.value;
+    state.filters.day = "all";
+    state.filters.lesson = "all";
+    hydrateDependentFilters();
     render();
   });
 
   els.dayFilter.addEventListener("change", () => {
     state.filters.day = els.dayFilter.value;
+    state.filters.lesson = "all";
+    hydrateDependentFilters();
+    render();
+  });
+
+  els.lessonFilter.addEventListener("change", () => {
+    state.filters.lesson = els.lessonFilter.value;
     render();
   });
 
@@ -139,21 +198,40 @@ function updateStatus(type, text, dateText) {
 
 function hydrateFilters() {
   const currentCoach = state.filters.coach;
-  const currentDay = state.filters.day;
   const coaches = unique(state.lessons.map((lesson) => lesson.coach).filter(Boolean)).sort(localeSort);
-  const days = unique(state.lessons.map((lesson) => lesson.day).filter(Boolean)).sort(sortDays);
 
-  fillSelect(els.coachFilter, [["all", "Все тренеры"], ...coaches.map((coach) => [coach, coach])], currentCoach);
-  fillSelect(els.dayFilter, [["all", "Все дни"], ...days.map((day) => [day, day])], currentDay);
+  fillSelect(els.coachFilter, [["all", "Выберите тренера"], ...coaches.map((coach) => [coach, coach])], currentCoach);
 
   if (!coaches.includes(currentCoach) && currentCoach !== "all") {
     state.filters.coach = "all";
     els.coachFilter.value = "all";
   }
 
+  hydrateDependentFilters();
+}
+
+function hydrateDependentFilters() {
+  const currentDay = state.filters.day;
+  const currentLesson = state.filters.lesson;
+  const coachScoped = state.lessons.filter((lesson) => state.filters.coach === "all" || lesson.coach === state.filters.coach);
+  const dayScoped = coachScoped.filter((lesson) => currentDay === "all" || lesson.day === currentDay);
+  const days = unique(coachScoped.map((lesson) => lesson.day).filter(Boolean)).sort(sortDays);
+  const lessonOptions = dayScoped
+    .slice()
+    .sort(sortLessons)
+    .map((lesson) => [lesson.id, lessonOptionLabel(lesson)]);
+
+  fillSelect(els.dayFilter, [["all", "Вся неделя"], ...days.map((day) => [day, day])], currentDay);
+  fillSelect(els.lessonFilter, [["all", "Все тренировки"], ...lessonOptions], currentLesson);
+
   if (!days.includes(currentDay) && currentDay !== "all") {
     state.filters.day = "all";
     els.dayFilter.value = "all";
+  }
+
+  if (!lessonOptions.some(([id]) => id === currentLesson) && currentLesson !== "all") {
+    state.filters.lesson = "all";
+    els.lessonFilter.value = "all";
   }
 }
 
@@ -178,10 +256,13 @@ function render() {
 }
 
 function getFilteredLessons() {
+  if (state.filters.coach === "all") return [];
+
   const search = state.filters.search;
   return state.lessons.filter((lesson) => {
     if (state.filters.coach !== "all" && lesson.coach !== state.filters.coach) return false;
     if (state.filters.day !== "all" && lesson.day !== state.filters.day) return false;
+    if (state.filters.lesson !== "all" && lesson.id !== state.filters.lesson) return false;
     if (!search) return true;
     return [
       lesson.title,
@@ -208,8 +289,9 @@ function renderMetrics(lessons) {
 
 function renderWeek(lessons) {
   els.scheduleGrid.replaceChildren();
+  els.scheduleGrid.classList.toggle("coach-selected", state.filters.coach !== "all");
   if (!lessons.length) {
-    els.scheduleGrid.append(emptyState("Нет занятий под выбранные фильтры"));
+    els.scheduleGrid.append(emptyState(state.filters.coach === "all" ? "Выберите тренера, чтобы увидеть расписание на неделю" : "Нет занятий под выбранные фильтры"));
     return;
   }
 
@@ -253,12 +335,12 @@ function lessonCard(lesson) {
 
   const title = document.createElement("p");
   title.className = "lesson-title";
-  title.textContent = lesson.title || lesson.group || "Занятие";
+  title.textContent = lesson.group || lesson.title || "Тренировка";
 
   const meta = document.createElement("div");
   meta.className = "lesson-meta";
   if (lesson.coach) meta.append(pill(lesson.coach, "coach"));
-  if (lesson.group && lesson.group !== lesson.title) meta.append(pill(lesson.group, ""));
+  if (lesson.title && lesson.group && lesson.group !== lesson.title) meta.append(pill(lesson.title, ""));
   if (lesson.room) meta.append(pill(lesson.room, "room"));
   if (lesson.note) meta.append(pill(lesson.note, ""));
 
@@ -457,11 +539,12 @@ function normalizeTableRows(rows, headerIndex, headerMap) {
     const fallback = row.filter(Boolean).join(" · ");
     const day = normalizeDay(valueAt(row, headerMap.day)) || lastDay || findDayInValues(row);
     const time = normalizeTime(valueAt(row, headerMap.time)) || findTimeInValues(row);
-    const coach = cleanValue(valueAt(row, headerMap.coach)) || lastCoach || extractLabel(fallback, "тренер");
-    const group = cleanValue(valueAt(row, headerMap.group)) || extractLabel(fallback, "группа");
-    const room = cleanValue(valueAt(row, headerMap.room)) || extractLabel(fallback, "зал");
+    const coach = cleanExplicitCoach(valueAt(row, headerMap.coach)) || lastCoach || cleanExplicitCoach(extractLabel(fallback, "тренер"));
+    const group = cleanTrainingName(valueAt(row, headerMap.group)) || extractLabel(fallback, "тренировка") || extractLabel(fallback, "занятие") || extractLabel(fallback, "группа");
+    const room = cleanValue(valueAt(row, headerMap.room)) || inferRoom("", row);
     const note = cleanValue(valueAt(row, headerMap.note));
 
+    if (isDistrictValue(fallback) || (!coach && !time && isLocationOnlyCell(fallback))) return;
     if (day) lastDay = day;
     if (coach) lastCoach = coach;
 
@@ -497,9 +580,11 @@ function normalizeMatrixRows(rows) {
 
       const day = findDayInValues([value, ...context]);
       const time = normalizeTime(value) || findTimeInValues(context);
-      const coach = extractLabel(joined, "тренер") || inferCoach(context);
-      const room = extractLabel(joined, "зал");
-      const group = extractLabel(joined, "группа") || value.split(/\r?\n/)[0];
+      const coach = cleanCoach(extractLabel(joined, "тренер")) || inferCoach([value, ...context]);
+      const room = inferRoom(value, context);
+      const group = extractLabel(joined, "тренировка") || extractLabel(joined, "занятие") || extractLabel(joined, "урок") || extractLabel(joined, "группа") || cleanTrainingName(value);
+
+      if (!isUsefulLessonCandidate({ value, day, time, coach, group, room })) return;
 
       lessons.push(buildLesson({
         id: `cell-${rowIndex + 1}-${colIndex + 1}`,
@@ -618,19 +703,103 @@ function extractLabel(text, label) {
 }
 
 function inferCoach(context) {
-  const candidates = context.map(cleanValue).filter((value) => {
-    if (!value || normalizeDay(value) || normalizeTime(value)) return false;
-    if (headerKey(value)) return false;
-    return /^[А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){0,2}$/.test(value);
-  });
+  const candidates = context.map(cleanValue).filter(isLikelyCoachName);
   return candidates.at(-1) || "";
+}
+
+function cleanCoach(value) {
+  const coach = cleanValue(value);
+  if (isLikelyLocation(coach) || isDistrictValue(coach)) return "";
+  return isLikelyCoachName(coach) ? coach : "";
+}
+
+function cleanExplicitCoach(value) {
+  const coach = cleanValue(value);
+  if (!coach || normalizeDay(coach) || normalizeTime(coach)) return "";
+  if (headerKey(coach) || isLikelyLocation(coach) || isDistrictValue(coach)) return "";
+  return coach;
+}
+
+function inferRoom(value, context) {
+  const joined = [value, ...context].join(" · ");
+  const labeledRoom =
+    extractLabel(joined, "зал") ||
+    extractLabel(joined, "адрес") ||
+    extractLabel(joined, "школа") ||
+    extractLabel(joined, "место");
+
+  if (labeledRoom) return labeledRoom;
+
+  return [value, ...context].map(cleanValue).find((item) => isLikelyLocation(item)) || "";
+}
+
+function isLikelyCoachName(value) {
+  const text = cleanValue(value);
+  if (!text || normalizeDay(text) || normalizeTime(text)) return false;
+  if (headerKey(text) || isLikelyLocation(text) || isDistrictValue(text)) return false;
+  if (/[0-9,@/#№]/.test(text)) return false;
+  if (text.length > 48) return false;
+
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 3) return false;
+
+  return words.every((word) => /^[А-ЯЁA-Z][а-яёa-z-]+$/.test(word));
+}
+
+function cleanTrainingName(value) {
+  const lines = cleanValue(value)
+    .split(/\r?\n|·/)
+    .map(cleanValue)
+    .filter(Boolean)
+    .filter((line) => !normalizeTime(line))
+    .filter((line) => !normalizeDay(line))
+    .filter((line) => !isLikelyCoachName(line))
+    .filter((line) => !isLikelyLocation(line))
+    .filter((line) => !isDistrictValue(line))
+    .filter((line) => !headerKey(line));
+
+  return lines[0] || "";
+}
+
+function isLikelyLocation(value) {
+  const text = cleanValue(value).toLowerCase();
+  if (!text) return false;
+  return LOCATION_MARKERS.some((marker) => text.includes(marker));
+}
+
+function isDistrictValue(value) {
+  const text = cleanValue(value).toLowerCase();
+  if (!text) return false;
+  return DISTRICT_MARKERS.some((marker) => text === marker || text.includes(marker));
+}
+
+function isLocationOnlyCell(value) {
+  const text = cleanValue(value);
+  if (!isLikelyLocation(text)) return false;
+  if (normalizeTime(text) || extractLabel(text, "тренер") || extractLabel(text, "группа")) return false;
+  return /[0-9№,]/.test(text) || text.length > 28;
+}
+
+function isUsefulLessonCandidate({ value, day, time, coach, group, room }) {
+  const text = cleanValue(value);
+  if (!text || isDistrictValue(text) || isLocationOnlyCell(text)) return false;
+  if (isLikelyCoachName(text) && !time && !group) return false;
+  if (!coach && !time) return false;
+  return Boolean(day || time || coach || group || room);
 }
 
 function isSkippableMatrixCell(value) {
   if (headerKey(value)) return true;
   if (normalizeDay(value) === value) return true;
   if (normalizeTime(value) === value) return true;
+  if (isDistrictValue(value)) return true;
+  if (isLocationOnlyCell(value)) return true;
   return value.length <= 2;
+}
+
+function lessonOptionLabel(lesson) {
+  const parts = [shortDay(lesson.day), lesson.time, lesson.group || lesson.title, lesson.room].filter(Boolean);
+  return parts.join(" · ");
 }
 
 function detectConflicts(lessons) {
