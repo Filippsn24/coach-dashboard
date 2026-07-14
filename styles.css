@@ -176,12 +176,14 @@ h1 {
   background: var(--surface);
 }
 
-label {
+label,
+.field {
   display: grid;
   gap: 6px;
 }
 
-label span {
+label span,
+.field-label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -218,7 +220,8 @@ a:focus-visible {
 }
 
 .day-toggle {
-  min-height: 32px;
+  width: 100%;
+  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
@@ -226,6 +229,8 @@ a:focus-visible {
   cursor: pointer;
   padding: 0 8px;
   font-weight: 800;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .day-toggle.active {
