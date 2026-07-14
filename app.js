@@ -25,6 +25,16 @@ const DAY_PATTERNS = [
   ["Воскресенье", /(^|\s)(воскресенье|вс\.?|sunday|sun)(\s|$)/i]
 ];
 
+const SHORT_DAY_HEADERS = {
+  "пн": "Понедельник",
+  "вт": "Вторник",
+  "ср": "Среда",
+  "чт": "Четверг",
+  "пт": "Пятница",
+  "сб": "Суббота",
+  "вс": "Воскресенье"
+};
+
 const HEADER_ALIASES = {
   day: ["день", "дата", "weekday", "day"],
   time: ["время", "интервал", "часы", "time", "начало"],
@@ -296,7 +306,9 @@ function renderWeek(lessons) {
   }
 
   const grouped = groupBy(lessons, (lesson) => lesson.day || "Без дня");
-  const days = Object.keys(grouped).sort(sortDays);
+  const days = state.filters.day === "all" && state.filters.coach !== "all"
+    ? DAY_ORDER
+    : Object.keys(grouped).sort(sortDays);
 
   days.forEach((day) => {
     const column = document.createElement("article");
@@ -307,12 +319,16 @@ function renderWeek(lessons) {
     const title = document.createElement("h2");
     title.textContent = day;
     const count = document.createElement("span");
-    count.textContent = `${grouped[day].length} зан.`;
+    count.textContent = `${grouped[day]?.length || 0} зан.`;
     header.append(title, count);
 
     const list = document.createElement("div");
     list.className = "lesson-list";
-    grouped[day].sort(sortLessons).forEach((lesson) => list.append(lessonCard(lesson)));
+    if (grouped[day]?.length) {
+      grouped[day].sort(sortLessons).forEach((lesson) => list.append(lessonCard(lesson)));
+    } else {
+      list.append(emptyState("Нет тренировок"));
+    }
 
     column.append(header, list);
     els.scheduleGrid.append(column);
@@ -517,6 +533,9 @@ async function fetchSheetCsv() {
 
 function normalizeSchedule(rows) {
   if (!rows.length) return [];
+  const trainerSchedule = detectTrainerScheduleTable(rows);
+  if (trainerSchedule) return normalizeTrainerScheduleTable(rows, trainerSchedule);
+
   const headerIndex = detectHeaderRow(rows);
   const headerMap = mapHeaders(rows[headerIndex] || []);
   const hasTableHeaders = Number.isInteger(headerMap.day) || Number.isInteger(headerMap.time) || Number.isInteger(headerMap.coach);
@@ -526,6 +545,84 @@ function normalizeSchedule(rows) {
   }
 
   return normalizeMatrixRows(rows);
+}
+
+function detectTrainerScheduleTable(rows) {
+  const headerIndex = rows.findIndex((row) => {
+    const normalized = row.map((cell) => cleanValue(cell).toLowerCase());
+    return normalized.includes("адрес") &&
+      normalized.includes("куратор") &&
+      normalized.includes("отделение") &&
+      ["пн", "вт", "ср", "чт", "пт", "сб", "вс"].every((day) => normalized.includes(day));
+  });
+
+  if (headerIndex === -1) return null;
+
+  const header = rows[headerIndex].map((cell) => cleanValue(cell).toLowerCase());
+  const dayColumns = header
+    .map((cell, index) => [cell, index])
+    .filter(([cell]) => SHORT_DAY_HEADERS[cell])
+    .map(([cell, index]) => ({ day: SHORT_DAY_HEADERS[cell], index }));
+
+  return {
+    headerIndex,
+    addressIndex: header.indexOf("адрес"),
+    metroIndex: header.indexOf("метро"),
+    curatorIndex: header.indexOf("куратор"),
+    schoolIndex: header.indexOf("школа"),
+    coachIndex: 5,
+    groupCountIndex: header.indexOf("групп"),
+    departmentIndex: header.indexOf("отделение"),
+    commentIndex: 15,
+    statusIndex: header.indexOf("статус"),
+    dayColumns
+  };
+}
+
+function normalizeTrainerScheduleTable(rows, config) {
+  const lessons = [];
+
+  rows.slice(config.headerIndex + 1).forEach((row, offset) => {
+    const coach = cleanExplicitCoach(valueAt(row, config.coachIndex));
+    if (!coach) return;
+
+    const address = cleanPlaceValue(valueAt(row, config.addressIndex));
+    const metro = cleanPlaceValue(valueAt(row, config.metroIndex));
+    const school = cleanValue(valueAt(row, config.schoolIndex));
+    const groupCount = cleanValue(valueAt(row, config.groupCountIndex));
+    const department = cleanValue(valueAt(row, config.departmentIndex));
+    const comment = cleanValue(valueAt(row, config.commentIndex));
+    const status = cleanValue(valueAt(row, config.statusIndex));
+
+    config.dayColumns.forEach(({ day, index }) => {
+      const cell = cleanValue(valueAt(row, index));
+      const time = normalizeTime(cell);
+      if (!time) return;
+
+      const rowNumber = config.headerIndex + offset + 2;
+      lessons.push(buildLesson({
+        id: `row-${rowNumber}-day-${index + 1}`,
+        day,
+        time,
+        coach,
+        group: trainingTitle({ department, school, groupCount }),
+        room: [address, metro ? `м. ${metro}` : ""].filter(Boolean).join(" · "),
+        note: [status, comment].filter(Boolean).join(" · "),
+        title: department || school || "Тренировка",
+        source: { row: rowNumber, col: index + 1 }
+      }));
+    });
+  });
+
+  return lessons.sort((a, b) => localeSort(a.coach, b.coach) || sortDays(a.day, b.day) || sortLessons(a, b));
+}
+
+function trainingTitle({ department, school, groupCount }) {
+  const parts = [];
+  if (department) parts.push(department);
+  if (school) parts.push(`школа ${school}`);
+  if (groupCount) parts.push(`${groupCount} гр.`);
+  return parts.join(" · ") || "Тренировка";
 }
 
 function normalizeTableRows(rows, headerIndex, headerMap) {
@@ -655,14 +752,23 @@ function sanitizeRows(rows) {
 }
 
 function cleanValue(value) {
-  return String(value ?? "")
+  const text = String(value ?? "")
     .replace(/\u00a0/g, " ")
     .replace(/[ \t]+/g, " ")
     .trim();
+  return text === "#N/A" ? "" : text;
 }
 
 function valueAt(row, index) {
   return Number.isInteger(index) ? row[index] : "";
+}
+
+function cleanPlaceValue(value) {
+  return cleanValue(value)
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeDay(value) {
