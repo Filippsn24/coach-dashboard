@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 
 const source = {
-  title: "Рабочая таблица расписания",
+  title: "Учебный год 26/27",
   spreadsheetId: "1j80t7W_-ouSPeGQoEUMu-o4RUBXw1VjcB3zIR-ym8fo",
   gid: "133047740",
   url: "https://docs.google.com/spreadsheets/d/1j80t7W_-ouSPeGQoEUMu-o4RUBXw1VjcB3zIR-ym8fo/edit?gid=133047740#gid=133047740"
