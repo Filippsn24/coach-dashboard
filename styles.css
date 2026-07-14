@@ -274,6 +274,55 @@ a:focus-visible {
   display: block;
 }
 
+.selected-lesson-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.selected-lesson-panel[hidden] {
+  display: none;
+}
+
+.selected-lesson-panel h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.lesson-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.lesson-detail-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.lesson-detail-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.lesson-detail-item strong {
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .schedule-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(160px, 1fr));
@@ -371,14 +420,14 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.pill.coach {
-  background: #e9f7f4;
-  color: #12675f;
-}
-
 .pill.room {
   background: #fff3df;
   color: #794900;
+}
+
+.pill.groups {
+  background: #e9f7f4;
+  color: #12675f;
 }
 
 .empty-state {
@@ -617,6 +666,7 @@ a:focus-visible {
 
   .metrics-grid,
   .toolbar,
+  .lesson-detail-grid,
   .schedule-grid,
   .coach-board {
     grid-template-columns: 1fr;
