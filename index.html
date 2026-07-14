@@ -72,8 +72,7 @@
           </label>
           <div class="segmented" role="tablist" aria-label="Вид">
             <button class="segment active" data-view="week" type="button">Неделя</button>
-            <button class="segment" data-view="coaches" type="button">Тренеры</button>
-            <button class="segment" data-view="data" type="button">Данные</button>
+            <button class="segment" data-view="coaches" type="button">Замены</button>
           </div>
         </section>
 
@@ -81,15 +80,31 @@
           <div class="schedule-grid" id="scheduleGrid"></div>
         </section>
 
-        <section class="view" id="coachesView" aria-label="Нагрузка тренеров">
-          <div class="coach-board" id="coachBoard"></div>
-        </section>
+        <section class="view" id="coachesView" aria-label="Замены и пересечения">
+          <div class="replacement-grid">
+            <article class="replacement-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Замена</p>
+                  <h2>Свободные тренеры</h2>
+                </div>
+                <span id="targetLessonBadge">Выберите тренировку</span>
+              </div>
+              <div id="targetLessonSummary" class="target-summary"></div>
+              <div id="freeCoachList" class="free-coach-list"></div>
+            </article>
 
-        <section class="view" id="dataView" aria-label="Исходные данные">
-          <div class="issues" id="issuesPanel"></div>
-          <div class="raw-table-wrap">
-            <table class="raw-table" id="rawTable"></table>
+            <article class="replacement-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Кто занят</p>
+                  <h2>Пересечения</h2>
+                </div>
+              </div>
+              <div id="conflictList" class="conflict-list"></div>
+            </article>
           </div>
+          <div class="coach-board" id="coachBoard"></div>
         </section>
       </main>
     </div>
