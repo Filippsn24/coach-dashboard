@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Расписание тренеров 25/26</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Учебный год 25/26</p>
+          <h1>Расписание тренеров</h1>
+        </div>
+        <div class="top-actions">
+          <a class="icon-button text-button" href="https://docs.google.com/spreadsheets/d/1j80t7W_-ouSPeGQoEUMu-o4RUBXw1VjcB3zIR-ym8fo/edit?gid=133047740#gid=133047740" target="_blank" rel="noreferrer">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.3 9.3-1.4-1.42 9.29-9.29H14V3Z"/><path d="M5 5h6v2H7v10h10v-4h2v6H5V5Z"/></svg>
+            <span>Таблица</span>
+          </a>
+          <button class="icon-button text-button" id="refreshButton" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1a6 6 0 1 1-1.42-6.23L13 11h8V3l-3.35 3.35Z"/></svg>
+            <span>Обновить</span>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="status-strip" aria-live="polite">
+          <div>
+            <span class="status-dot" id="statusDot"></span>
+            <span id="sourceStatus">Загрузка данных</span>
+          </div>
+          <div id="updatedAt">-</div>
+        </section>
+
+        <section class="metrics-grid" aria-label="Сводка">
+          <article class="metric">
+            <span>Занятий</span>
+            <strong id="metricLessons">0</strong>
+          </article>
+          <article class="metric">
+            <span>Тренеров</span>
+            <strong id="metricCoaches">0</strong>
+          </article>
+          <article class="metric">
+            <span>Часов в неделю</span>
+            <strong id="metricHours">0</strong>
+          </article>
+          <article class="metric">
+            <span>Пересечений</span>
+            <strong id="metricConflicts">0</strong>
+          </article>
+        </section>
+
+        <section class="toolbar" aria-label="Фильтры">
+          <label>
+            <span>Тренер</span>
+            <select id="coachFilter"></select>
+          </label>
+          <label>
+            <span>День</span>
+            <select id="dayFilter"></select>
+          </label>
+          <label class="search-field">
+            <span>Поиск</span>
+            <input id="searchInput" type="search" placeholder="Группа, зал, комментарий">
+          </label>
+          <div class="segmented" role="tablist" aria-label="Вид">
+            <button class="segment active" data-view="week" type="button">Неделя</button>
+            <button class="segment" data-view="coaches" type="button">Тренеры</button>
+            <button class="segment" data-view="data" type="button">Данные</button>
+          </div>
+        </section>
+
+        <section class="view active" id="weekView" aria-label="Недельная сетка">
+          <div class="schedule-grid" id="scheduleGrid"></div>
+        </section>
+
+        <section class="view" id="coachesView" aria-label="Нагрузка тренеров">
+          <div class="coach-board" id="coachBoard"></div>
+        </section>
+
+        <section class="view" id="dataView" aria-label="Исходные данные">
+          <div class="issues" id="issuesPanel"></div>
+          <div class="raw-table-wrap">
+            <table class="raw-table" id="rawTable"></table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="data/schedule.js"></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "coach-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "update-data": "node scripts/fetch-google-sheet.mjs"
+  }
+}
